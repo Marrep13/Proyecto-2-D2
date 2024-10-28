@@ -1,0 +1,125 @@
+#include <Arduino.h>
+#include "Wire.h"
+#include <ESP32SPISlave.h>
+
+#define I2C_DEV_ADDR 0X55
+#define LEDR 27
+#define LEDA 26
+#define LEDV 25
+#define pot 34
+#define QUEUE_SIZE 1
+
+ESP32SPISlave slave;
+
+static constexpr uint32_t BUFFER_SIZE{10};
+
+uint8_t spi_slave_tx_buf[BUFFER_SIZE];
+uint8_t spi_slave_rx_buf[BUFFER_SIZE];
+char cmd;
+
+int tiempo = 0;
+uint8_t i = 0;
+uint8_t valorpot = 0;
+uint8_t temp = 0;
+float voltaje;
+uint16_t voltaje_mV;
+
+void onRequest();
+void onReceive(int len);
+
+//Wire es I2C, slave es spi
+void setup(){
+  Serial.begin(115200);
+  Serial.setDebugOutput(true);
+  pinMode(LEDR, OUTPUT);
+  pinMode(LEDA, OUTPUT);
+  pinMode(LEDV, OUTPUT);
+  
+
+  Wire.onReceive(onReceive);
+  Wire.onRequest(onRequest);
+  Wire.begin((uint8_t)I2C_DEV_ADDR);
+// HSPI = cs: 15, clk: 14, mosi: 13, miso: 12
+// VSPI = CS: 5, CLK:18, MOSI:23, MISO:19
+  slave.setDataMode(SPI_MODE0);
+  slave.setQueueSize(QUEUE_SIZE);
+  slave.begin(HSPI);
+
+  // Inicializa el buffer de recepción en cero
+  memset(spi_slave_tx_buf, 0, BUFFER_SIZE);
+  memset(spi_slave_rx_buf, 0, BUFFER_SIZE);
+}
+
+void loop(){
+  slave.wait(spi_slave_rx_buf, spi_slave_tx_buf, BUFFER_SIZE);
+  while(slave.available()){
+    Serial.print("Command Received:");
+    /*
+    Serial.println(spi_slave_rx_buf[0]);
+    cmd = spi_slave_rx_buf[0];
+    slave.pop();
+    */
+
+    for (int i = 0; i < BUFFER_SIZE; i++) {  // Lee y muestra los 6 bytes recibidos
+      Serial.println("Byte recibido");
+      Serial.println(spi_slave_rx_buf[i]);
+      Serial.print(" ");
+    }
+    //cmd = spi_slave_rx_buf[0];  // Usamos el primer byte para una acción específica
+    tiempo = atoi((const char*)&spi_slave_rx_buf[3 + 1]); // posicion_coma + 1 apunta al carácter después de la coma
+    Serial.print("Tiempo extraído: ");
+    Serial.println(tiempo);
+    slave.pop();
+
+  }
+  if(spi_slave_rx_buf[2] == 49){
+
+    Serial.println("LED ROJA");
+    digitalWrite(LEDR,  1);
+    delay(tiempo);
+    digitalWrite(LEDR, 0);
+    }if(spi_slave_rx_buf[2] == 50){
+      Serial.println("LED AMARILLA");
+      digitalWrite(LEDA, 1);
+      delay(tiempo);
+      digitalWrite(LEDA, 0);
+    }if(spi_slave_rx_buf[2] == 51){
+      Serial.println("LED VERDE");
+      digitalWrite(LEDV, 1);
+      delay(tiempo);
+      digitalWrite(LEDV, 0);
+    }
+
+
+}
+
+void onRequest(){
+  
+
+  temp = analogRead(pot);
+  voltaje = (temp/255.0) *3.3;
+  voltaje_mV = voltaje*1000;
+
+  Wire.print(voltaje_mV);
+  Wire.print(voltaje_mV);
+
+  //Wire.write(temp);     // Envía el byte bajo
+  Serial.println("mande esto");
+  Serial.println(voltaje_mV);
+
+}
+
+void onReceive(int len){
+
+  while (Wire.available()){
+  uint8_t incomingByte = Wire.read();
+  Serial.write(incomingByte);
+
+  if(incomingByte == 'S'){
+
+    }else{
+    Serial.println("no se mandó nada");
+    }
+  }
+  
+  }
